@@ -421,31 +421,7 @@ def genGrid(data1, data2, gm, deep=True, grid=None, geo=None, genVectors=False,
         ptsBounds = pts.GetBounds()
         xRange = ptsBounds[1] - ptsBounds[0]
         xm, xM, ym, yM, tmp, tmp2 = pts.GetBounds()
-        if (isinstance(g, cdms2.hgrid.TransientCurveGrid) and
-                xRange > 360 and not numpy.isclose(xRange, 360)):
-            vg.SetPoints(pts)
-            # index into the scalar array. Used for upgrading
-            # the scalar after wrapping. Note this will work
-            # correctly only for cell data. For point data
-            # the indexes for points on the border will be incorrect after
-            # wrapping
-            pedigreeId = vtk.vtkIntArray()
-            pedigreeId.SetName("PedigreeIds")
-            pedigreeId.SetNumberOfTuples(attribute.GetNumberOfTuples())
-            for i in range(0, attribute.GetNumberOfTuples()):
-                pedigreeId.SetValue(i, i)
-            if cellData:
-                vg.GetCellData().SetPedigreeIds(pedigreeId)
-            else:
-                vg.GetPointData().SetPedigreeIds(pedigreeId)
-            vg = wrapDataSetX(vg)
-            pts = vg.GetPoints()
-            xm, xM, ym, yM, tmp, tmp2 = vg.GetPoints().GetBounds()
-    else:
-        xm, xM, ym, yM, tmp, tmp2 = grid.GetPoints().GetBounds()
-    projection = vcs.elements["projection"][gm.projection]
-    if grid is None:
-        vg.SetPoints(pts)
+
         # We use the zooming feature for linear and polar projections
         # We use plotting coordinates for doing the projection
         # such that parameters such that central meridian are set correctly
@@ -456,6 +432,33 @@ def genGrid(data1, data2, gm, deep=True, grid=None, geo=None, genVectors=False,
             wc = vcs.utils.getworldcoordinates(gm,
                                                data1.getAxis(-1),
                                                data1.getAxis(-2))
+        vg.SetPoints(pts)
+        # index into the scalar array. Used for upgrading
+        # the scalar after wrapping. Note this will work
+        # correctly only for cell data. For point data
+        # the indexes for points on the border will be incorrect after
+        # wrapping
+        pedigreeId = vtk.vtkIntArray()
+        pedigreeId.SetName("PedigreeIds")
+        pedigreeId.SetNumberOfTuples(attribute.GetNumberOfTuples())
+        for i in range(0, attribute.GetNumberOfTuples()):
+            pedigreeId.SetValue(i, i)
+        if cellData:
+            vg.GetCellData().SetPedigreeIds(pedigreeId)
+        else:
+            vg.GetPointData().SetPedigreeIds(pedigreeId)
+
+        if (isinstance(g, cdms2.hgrid.TransientCurveGrid) and
+                xRange > 360 and not numpy.isclose(xRange, 360)):
+            vg = wrapDataSetX(vg)
+            pts = vg.GetPoints()
+            xm, xM, ym, yM, tmp, tmp2 = vg.GetPoints().GetBounds()
+        doWrapData(vg, wc)
+    else:
+        xm, xM, ym, yM, tmp, tmp2 = grid.GetPoints().GetBounds()
+    projection = vcs.elements["projection"][gm.projection]
+    if grid is None:
+        vg.SetPoints(pts)
         geo, geopts = project(pts, projection, getWrappedBounds(
             wc, [xm, xM, ym, yM], wrap))
         # proj4 returns inf for points that are not visible. Set those to a valid point
@@ -959,6 +962,103 @@ def doWrap(Act, wc, wrap=[0., 360], fastClip=True):
 
     Mapper.SetInputData(clipper.GetOutput())
     return Act
+
+
+# Wrapping around
+def doWrapData(data, wc, wrap=[0., 360], fastClip=True):
+    if wrap is None:
+        return data
+    # insure that GLOBALIDS are not removed by the append filter
+    attributes = data.GetCellData()
+    attributes.SetActiveAttribute(-1, attributes.GLOBALIDS)
+    xmn = min(wc[0], wc[1])
+    xmx = max(wc[0], wc[1])
+    if numpy.allclose(xmn, 1.e20) or numpy.allclose(xmx, 1.e20):
+        xmx = abs(wrap[1])
+        xmn = -wrap[1]
+    ymn = min(wc[2], wc[3])
+    ymx = max(wc[2], wc[3])
+    if numpy.allclose(ymn, 1.e20) or numpy.allclose(ymx, 1.e20):
+        ymx = abs(wrap[0])
+        ymn = -wrap[0]
+
+    appendFilter = vtk.vtkAppendFilter()
+    appendFilter.AddInputData(data)
+    appendFilter.Update()
+    bounds = data.GetBounds()
+    # X axis wrappping
+    Amn, Amx = bounds[0], bounds[1]
+    if wrap[1] != 0.:
+        i = 0
+        while Amn > xmn:
+            i += 1
+            Amn -= wrap[1]
+            Tpf = vtk.vtkTransformFilter()
+            Tpf.SetInputData(data)
+            T = vtk.vtkTransform()
+            T.Translate(-i * wrap[1], 0, 0)
+            Tpf.SetTransform(T)
+            Tpf.Update()
+            appendFilter.AddInputData(Tpf.GetOutput())
+            appendFilter.Update()
+        i = 0
+        while Amx < xmx:
+            i += 1
+            Amx += wrap[1]
+            Tpf = vtk.vtkTransformFilter()
+            Tpf.SetInputData(data)
+            T = vtk.vtkTransform()
+            T.Translate(i * wrap[1], 0, 0)
+            Tpf.SetTransform(T)
+            Tpf.Update()
+            appendFilter.AddInputData(Tpf.GetOutput())
+            appendFilter.Update()
+
+    # Y axis wrapping
+    Amn, Amx = bounds[2], bounds[3]
+    if wrap[0] != 0.:
+        i = 0
+        while Amn > ymn:
+            i += 1
+            Amn -= wrap[0]
+            Tpf = vtk.vtkTransformFilter()
+            Tpf.SetInputData(data)
+            T = vtk.vtkTransform()
+            T.Translate(0, i * wrap[0], 0)
+            Tpf.SetTransform(T)
+            Tpf.Update()
+            appendFilter.AddInputData(Tpf.GetOutput())
+            appendFilter.Update()
+        i = 0
+        while Amx < ymx:
+            i += 1
+            Amx += wrap[0]
+            Tpf = vtk.vtkTransformFilter()
+            Tpf.SetInputData(data)
+            T = vtk.vtkTransform()
+            T.Translate(0, -i * wrap[0], 0)
+            Tpf.SetTransform(T)
+            Tpf.Update()
+            appendFilter.AddInputData(Tpf.GetOutput())
+            appendFilter.Update()
+
+    # Clip the data to the final window:
+    clipBox = vtk.vtkBox()
+    clipBox.SetXMin(xmn, ymn, -1.0)
+    clipBox.SetXMax(xmx, ymx, 1.0)
+    clipper = vtk.vtkExtractGeometry()
+    clipper.ExtractInsideOn()
+    clipper.SetImplicitFunction(clipBox)
+    clipper.ExtractBoundaryCellsOn()
+    clipper.SetInputConnection(appendFilter.GetOutputPort())
+    clipper.Update()
+    # set globalids attribute
+    attributes = clipper.GetOutput().GetCellData()
+    globalIdsIndex = vtk.mutable(-1)
+    attributes.GetArray("GlobalIds", globalIdsIndex)
+    attributes.SetActiveAttribute(globalIdsIndex, attributes.GLOBALIDS)
+
+    return clipper.GetOutput()
 
 
 # Wrap grid in interval minX, minX + 360
