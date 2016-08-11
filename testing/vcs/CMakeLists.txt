@@ -784,7 +784,7 @@ cdat_add_test(test_vcs_settings_color_name_rgba
   #  ${cdat_SOURCE_DIR}/testing/vcs/test_aspect_ratio.py
   #  )
 
-  foreach(z none subset datawc)
+  foreach(z none subset datawc0 datawc1 datawc2)
     cdat_add_test(test_vcs_polar_zoom_${z}
       "${PYTHON_EXECUTABLE}"
       ${cdat_SOURCE_DIR}/testing/vcs/test_vcs_polar_zoom.py

@@ -13,10 +13,15 @@ if (zoom == 'none'):
 elif (zoom == 'subset'):
     x.plot(s(latitude=(-50,90), longitude=(30, -30)), i, bg=1)
 else:
-    s.datawc_x1 = -50
-    s.datawc_x2 = 90
-    s.datawc_y1 = 30
-    s.datawc_y2 = -30
+    i.datawc_x1 = 30
+    i.datawc_x2 = -30
+    i.datawc_y1 = -50
+    i.datawc_y2 = 90
+    if (zoom == 'datawc1'):
+        i.datawc_x1, i.datawc_x2 = i.datawc_x2, i.datawc_x1
+    if (zoom == 'datawc2'):
+        i.datawc_y1, i.datawc_y2 = i.datawc_y2, i.datawc_y1
     x.plot(s, i, bg=1)
+    
 file = "test_vcs_polar_zoom_" + zoom + ".png"
 regression.run(x, file)

@@ -17,6 +17,27 @@ import numbers
 f = open(os.path.join(vcs.prefix, "share", "vcs", "wmo_symbols.json"))
 wmo = json.load(f)
 
+_DEBUG_VTK = True
+
+
+def debugWriteGrid(grid, name):
+    if (_DEBUG_VTK):
+        writer = vtk.vtkXMLDataSetWriter()
+        gridType = grid.GetDataObjectType()
+        if (gridType == vtk.VTK_STRUCTURED_GRID):
+            ext = ".vts"
+        elif (gridType == vtk.VTK_UNSTRUCTURED_GRID):
+            ext = ".vtu"
+        elif (gridType == vtk.VTK_POLY_DATA):
+            ext = ".vtp"
+        else:
+            print "Unknown grid type: %d" % gridType
+            ext = ".vtk"
+        writer.SetFileName(name + ext)
+        writer.SetInputData(grid)
+        writer.Write()
+
+
 projNames = [
     "linear",
     "utm",
@@ -453,7 +474,11 @@ def genGrid(data1, data2, gm, deep=True, grid=None, geo=None, genVectors=False,
             vg = wrapDataSetX(vg)
             pts = vg.GetPoints()
             xm, xM, ym, yM, tmp, tmp2 = vg.GetPoints().GetBounds()
-        doWrapData(vg, wc)
+        debugWriteGrid(vg, "lonlat")            
+        vg = doWrapData(vg, wc)
+        pts = vg.GetPoints()        
+        xm, xM, ym, yM, tmp, tmp2 = vg.GetPoints().GetBounds()        
+        debugWriteGrid(vg, "lonlat-wrap")
     else:
         xm, xM, ym, yM, tmp, tmp2 = grid.GetPoints().GetBounds()
     projection = vcs.elements["projection"][gm.projection]
@@ -480,8 +505,10 @@ def genGrid(data1, data2, gm, deep=True, grid=None, geo=None, genVectors=False,
                         ym = p[1]
                     if (p[1] > yM):
                         yM = p[1]
+
         # Sets the vertics into the grid
         vg.SetPoints(geopts)
+        debugWriteGrid(vg, "geo")
     else:
         vg = grid
     # Add a GlobalIds array to keep track of cell ids throughout the pipeline
