@@ -453,6 +453,7 @@ def genGrid(data1, data2, gm, deep=True, grid=None, geo=None, genVectors=False,
             wc = vcs.utils.getworldcoordinates(gm,
                                                data1.getAxis(-1),
                                                data1.getAxis(-2))
+
         vg.SetPoints(pts)
         # index into the scalar array. Used for upgrading
         # the scalar after wrapping. Note this will work
@@ -479,10 +480,7 @@ def genGrid(data1, data2, gm, deep=True, grid=None, geo=None, genVectors=False,
         pts = vg.GetPoints()        
         xm, xM, ym, yM, tmp, tmp2 = vg.GetPoints().GetBounds()        
         debugWriteGrid(vg, "lonlat-wrap")
-    else:
-        xm, xM, ym, yM, tmp, tmp2 = grid.GetPoints().GetBounds()
-    projection = vcs.elements["projection"][gm.projection]
-    if grid is None:
+        projection = vcs.elements["projection"][gm.projection]
         vg.SetPoints(pts)
         geo, geopts = project(pts, projection, getWrappedBounds(
             wc, [xm, xM, ym, yM], wrap))
@@ -510,7 +508,9 @@ def genGrid(data1, data2, gm, deep=True, grid=None, geo=None, genVectors=False,
         vg.SetPoints(geopts)
         debugWriteGrid(vg, "geo")
     else:
+        xm, xM, ym, yM, tmp, tmp2 = grid.GetPoints().GetBounds()
         vg = grid
+
     # Add a GlobalIds array to keep track of cell ids throughout the pipeline
     globalIds = numpy_to_vtk_wrapper(numpy.arange(0, vg.GetNumberOfCells()), deep=True)
     globalIds.SetName('GlobalIds')
